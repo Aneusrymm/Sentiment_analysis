@@ -1,12 +1,11 @@
 import streamlit as st
 
-# Set page configuration - MUST BE THE FIRST Streamlit command
 st.set_page_config(
     page_title="Advanced YouTube Comment Sentiment Analysis", 
     layout="wide"
 )
 
-# Now import other libraries
+
 import pandas as pd
 import numpy as np
 import re

@@ -1,1 +1,13 @@
+pandas
+numpy
 matplotlib
+seaborn
+wordcloud
+textblob
+google-api-python-client
+nltk
+plotly
+scikit-learn
+vaderSentiment
+altair
+Pillow
