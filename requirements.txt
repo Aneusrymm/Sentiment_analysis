@@ -11,3 +11,4 @@ scikit-learn
 vaderSentiment
 altair
 Pillow
+streamlit==1.44.0
