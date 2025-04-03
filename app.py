@@ -93,8 +93,8 @@ def get_comments(api_key, video_id, max_results=100):
         comments = []
         comment_data = []
         next_page_token = None
-        
-        with st.progress(0) as progress_bar:
+        progress_bar = st.progress(0)
+        with st.progress_bar:
             # Continue fetching comments until we reach the desired number or there are no more
             while len(comments) < max_results:
                 # Make API request
