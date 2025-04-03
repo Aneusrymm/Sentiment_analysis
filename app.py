@@ -25,6 +25,8 @@ import base64
 from io import BytesIO
 import time
 import os
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 nltk.data.path.append("/tmp/nltk_data")
 os.makedirs("/tmp/nltk_data", exist_ok=True)
@@ -84,58 +86,55 @@ def get_video_info(api_key, video_id):
         return None
 
 # Function to get comments from YouTube API with pagination and time tracking
+
 def get_comments(api_key, video_id, max_results=100):
     # Create YouTube API client
     youtube = build('youtube', 'v3', developerKey=api_key)
     
     try:
         # Get comments
-        comments = []
         comment_data = []
         next_page_token = None
         progress_bar = st.progress(0)
-        with st.progress_bar:
-            # Continue fetching comments until we reach the desired number or there are no more
-            while len(comments) < max_results:
-                # Make API request
-                response = youtube.commentThreads().list(
-                    part='snippet',
-                    videoId=video_id,
-                    maxResults=min(100, max_results - len(comments)),
-                    pageToken=next_page_token,
-                    textFormat='plainText'
-                ).execute()
-                
-                # Extract comments from the response
-                for item in response['items']:
-                    comment_snippet = item['snippet']['topLevelComment']['snippet']
-                    comment = comment_snippet['textDisplay']
-                    
-                    # Also collect metadata
-                    comment_info = {
-                        'text': comment,
-                        'author': comment_snippet['authorDisplayName'],
-                        'published_at': comment_snippet['publishedAt'],
-                        'like_count': comment_snippet['likeCount'],
-                        'reply_count': item['snippet'].get('totalReplyCount', 0)
-                    }
-                    
-                    comments.append(comment)
-                    comment_data.append(comment_info)
-                
-                # Update progress bar
-                progress_bar.progress(min(len(comments) / max_results, 1.0))
-                
-                # Check if there are more pages
-                next_page_token = response.get('nextPageToken')
-                if not next_page_token or len(comments) >= max_results:
-                    break
-                    
-            return comments, comment_data
+
+        while len(comment_data) < max_results:
+            # Make API request
+            response = youtube.commentThreads().list(
+                part='snippet',
+                videoId=video_id,
+                maxResults=min(100, max_results - len(comment_data)),
+                pageToken=next_page_token,
+                textFormat='plainText'
+            ).execute()
             
+            # Extract comments from the response
+            for item in response['items']:
+                comment_snippet = item['snippet']['topLevelComment']['snippet']
+                
+                # Store metadata
+                comment_info = {
+                    'text': comment_snippet['textDisplay'],
+                    'author': comment_snippet['authorDisplayName'],
+                    'published_at': comment_snippet['publishedAt'],
+                    'like_count': comment_snippet['likeCount'],
+                    'reply_count': item['snippet'].get('totalReplyCount', 0)
+                }
+                
+                comment_data.append(comment_info)
+            
+            # Update progress bar
+            progress_bar.progress(len(comment_data) / max_results if max_results > 0 else 1.0)
+            
+            # Check if there are more pages
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token or len(comment_data) >= max_results:
+                break
+                
+        return comment_data
+    
     except HttpError as e:
         st.error(f"An error occurred: {e}")
-        return [], []
+        return []
 
 # Function to preprocess text
 def preprocess_text(text):
