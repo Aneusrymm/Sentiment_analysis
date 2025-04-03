@@ -139,18 +139,20 @@ def preprocess_text(text):
     # Convert to lowercase
     text = text.lower()
     
-    # Remove URLs, mentions, hashtags, and special characters
+    # Remove URLs, mentions, hashtags
     text = re.sub(r'http\S+|www\S+|https\S+', '', text)
     text = re.sub(r'@\w+', '', text)
     text = re.sub(r'#\w+', '', text)
-    text = re.sub(r'[^\w\s]', '', text)
+    
+    # Keep some basic punctuation that might be meaningful
+    text = re.sub(r'[^\w\s\'-]', '', text)
     
     # Tokenize
     tokens = word_tokenize(text)
     
-    # Remove stopwords
+    # Remove stopwords but keep short meaningful words
     stop_words = set(stopwords.words('english'))
-    tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
+    tokens = [word for word in tokens if word not in stop_words and len(word) > 1]
     
     return tokens
 
