@@ -1,4 +1,5 @@
 import streamlit as st
+# Set page configuration
 st.set_page_config(page_title="Advanced YouTube Comment Sentiment Analysis", layout="wide")
 import pandas as pd
 import numpy as np
@@ -24,12 +25,7 @@ from PIL import Image
 import base64
 from io import BytesIO
 import time
-import os
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
-nltk.data.path.append("/tmp/nltk_data")
-os.makedirs("/tmp/nltk_data", exist_ok=True)
 # Download NLTK resources
 @st.cache_resource
 def download_nltk_resources():
@@ -38,6 +34,7 @@ def download_nltk_resources():
     nltk.download('wordnet')
 
 download_nltk_resources()
+
 
 # Initialize session state for caching data
 if 'analyzed_videos' not in st.session_state:
@@ -86,75 +83,76 @@ def get_video_info(api_key, video_id):
         return None
 
 # Function to get comments from YouTube API with pagination and time tracking
-
 def get_comments(api_key, video_id, max_results=100):
     # Create YouTube API client
     youtube = build('youtube', 'v3', developerKey=api_key)
     
     try:
         # Get comments
+        comments = []
         comment_data = []
         next_page_token = None
-        progress_bar = st.progress(0)
-
-        while len(comment_data) < max_results:
-            # Make API request
-            response = youtube.commentThreads().list(
-                part='snippet',
-                videoId=video_id,
-                maxResults=min(100, max_results - len(comment_data)),
-                pageToken=next_page_token,
-                textFormat='plainText'
-            ).execute()
-            
-            # Extract comments from the response
-            for item in response['items']:
-                comment_snippet = item['snippet']['topLevelComment']['snippet']
+        
+        with st.progress(0) as progress_bar:
+            # Continue fetching comments until we reach the desired number or there are no more
+            while len(comments) < max_results:
+                # Make API request
+                response = youtube.commentThreads().list(
+                    part='snippet',
+                    videoId=video_id,
+                    maxResults=min(100, max_results - len(comments)),
+                    pageToken=next_page_token,
+                    textFormat='plainText'
+                ).execute()
                 
-                # Store metadata
-                comment_info = {
-                    'text': comment_snippet['textDisplay'],
-                    'author': comment_snippet['authorDisplayName'],
-                    'published_at': comment_snippet['publishedAt'],
-                    'like_count': comment_snippet['likeCount'],
-                    'reply_count': item['snippet'].get('totalReplyCount', 0)
-                }
+                # Extract comments from the response
+                for item in response['items']:
+                    comment_snippet = item['snippet']['topLevelComment']['snippet']
+                    comment = comment_snippet['textDisplay']
+                    
+                    # Also collect metadata
+                    comment_info = {
+                        'text': comment,
+                        'author': comment_snippet['authorDisplayName'],
+                        'published_at': comment_snippet['publishedAt'],
+                        'like_count': comment_snippet['likeCount'],
+                        'reply_count': item['snippet'].get('totalReplyCount', 0)
+                    }
+                    
+                    comments.append(comment)
+                    comment_data.append(comment_info)
                 
-                comment_data.append(comment_info)
-            
-            # Update progress bar
-            progress_bar.progress(len(comment_data) / max_results if max_results > 0 else 1.0)
-            
-            # Check if there are more pages
-            next_page_token = response.get('nextPageToken')
-            if not next_page_token or len(comment_data) >= max_results:
-                break
+                # Update progress bar
+                progress_bar.progress(min(len(comments) / max_results, 1.0))
                 
-        return comment_data
-    
+                # Check if there are more pages
+                next_page_token = response.get('nextPageToken')
+                if not next_page_token or len(comments) >= max_results:
+                    break
+                    
+            return comments, comment_data
+            
     except HttpError as e:
         st.error(f"An error occurred: {e}")
-        return []
+        return [], []
 
 # Function to preprocess text
 def preprocess_text(text):
     # Convert to lowercase
     text = text.lower()
     
-    # Remove URLs, mentions, hashtags
+    # Remove URLs, mentions, hashtags, and special characters
     text = re.sub(r'http\S+|www\S+|https\S+', '', text)
     text = re.sub(r'@\w+', '', text)
     text = re.sub(r'#\w+', '', text)
-    
-    # Keep some basic punctuation that might be meaningful
-    text = re.sub(r'[^\w\s\'-]', '', text)
+    text = re.sub(r'[^\w\s]', '', text)
     
     # Tokenize
     tokens = word_tokenize(text)
     
-    # Remove stopwords but keep short meaningful words
+    # Remove stopwords
     stop_words = set(stopwords.words('english'))
-    tokens = [word for word in tokens if word not in stop_words and len(word) > 1]
+    tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
     
     return tokens
 
@@ -268,30 +266,21 @@ def create_wordcloud(all_tokens, color_theme='viridis'):
     # Join tokens into a single string
     text = ' '.join(all_tokens)
     
-    # Check if we have any valid words
-    if not text.strip():
-        st.warning("Not enough words to generate word cloud after filtering")
-        return None
+    # Create word cloud
+    wordcloud = WordCloud(width=800, height=400, background_color='white', 
+                         max_words=200, contour_width=3, contour_color='steelblue',
+                         colormap=color_theme)
+    wordcloud.generate(text)
     
-    try:
-        # Create word cloud
-        wordcloud = WordCloud(width=800, height=400, background_color='white', 
-                            max_words=200, contour_width=3, contour_color='steelblue',
-                            colormap=color_theme)
-        wordcloud.generate(text)
-        
-        # Convert WordCloud to image
-        img = wordcloud.to_image()
-        
-        # Convert PIL image to base64 string for display
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        
-        return img_str
-    except ValueError as e:
-        st.warning(f"Could not generate word cloud: {str(e)}")
-        return None
+    # Convert WordCloud to image
+    img = wordcloud.to_image()
+    
+    # Convert PIL image to base64 string for display
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    
+    return img_str
 
 # Function to create sentiment visualization with Plotly
 def create_sentiment_viz(df):
@@ -680,7 +669,11 @@ def main():
            - **Topic Analysis**: Discover key topics in the comments
            - **Time & Engagement**: Analyze sentiment trends and engagement metrics
            - **Raw Data**: View and export detailed comment data
-
+        
+        ### Tips for Better Results
+        - Analyze more comments for more accurate results
+        - Try different color themes for word clouds
+        - Filter results by sentiment or emotion for deeper insights
         """)
     
     # Footer
