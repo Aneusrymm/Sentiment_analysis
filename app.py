@@ -264,21 +264,30 @@ def create_wordcloud(all_tokens, color_theme='viridis'):
     # Join tokens into a single string
     text = ' '.join(all_tokens)
     
-    # Create word cloud
-    wordcloud = WordCloud(width=800, height=400, background_color='white', 
-                         max_words=200, contour_width=3, contour_color='steelblue',
-                         colormap=color_theme)
-    wordcloud.generate(text)
+    # Check if we have any valid words
+    if not text.strip():
+        st.warning("Not enough words to generate word cloud after filtering")
+        return None
     
-    # Convert WordCloud to image
-    img = wordcloud.to_image()
-    
-    # Convert PIL image to base64 string for display
-    buffered = BytesIO()
-    img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-    
-    return img_str
+    try:
+        # Create word cloud
+        wordcloud = WordCloud(width=800, height=400, background_color='white', 
+                            max_words=200, contour_width=3, contour_color='steelblue',
+                            colormap=color_theme)
+        wordcloud.generate(text)
+        
+        # Convert WordCloud to image
+        img = wordcloud.to_image()
+        
+        # Convert PIL image to base64 string for display
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return img_str
+    except ValueError as e:
+        st.warning(f"Could not generate word cloud: {str(e)}")
+        return None
 
 # Function to create sentiment visualization with Plotly
 def create_sentiment_viz(df):
