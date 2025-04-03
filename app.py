@@ -157,23 +157,36 @@ def get_comments(api_key, video_id, max_results=100):
 
 # Function to preprocess text
 def preprocess_text(text):
-    # Convert to lowercase
-    text = text.lower()
-    
-    # Remove URLs, mentions, hashtags, and special characters
-    text = re.sub(r'http\S+|www\S+|https\S+', '', text)
-    text = re.sub(r'@\w+', '', text)
-    text = re.sub(r'#\w+', '', text)
-    text = re.sub(r'[^\w\s]', '', text)
-    
-    # Tokenize
-    tokens = word_tokenize(text)
-    
-    # Remove stopwords
-    stop_words = set(stopwords.words('english'))
-    tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
-    
-    return tokens
+    try:
+        # Convert to lowercase
+        text = text.lower()
+        
+        # Remove URLs, mentions, hashtags, and special characters
+        text = re.sub(r'http\S+|www\S+|https\S+', '', text)
+        text = re.sub(r'@\w+', '', text)
+        text = re.sub(r'#\w+', '', text)
+        text = re.sub(r'[^\w\s]', '', text)
+        
+        # Tokenize with error handling
+        try:
+            tokens = word_tokenize(text)
+        except LookupError:
+            nltk.download('punkt')
+            tokens = word_tokenize(text)
+        
+        # Remove stopwords with error handling
+        try:
+            stop_words = set(stopwords.words('english'))
+        except LookupError:
+            nltk.download('stopwords')
+            stop_words = set(stopwords.words('english'))
+            
+        tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
+        
+        return tokens
+    except Exception as e:
+        st.error(f"Error preprocessing text: {str(e)}")
+        return []
 
 # Function to analyze sentiment with multiple methods
 def analyze_sentiment_multiple(text):
