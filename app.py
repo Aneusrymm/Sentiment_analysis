@@ -25,6 +25,8 @@ import base64
 from io import BytesIO
 import time
 
+nltk.data.path.append("/tmp/nltk_data")
+os.makedirs("/tmp/nltk_data", exist_ok=True)
 # Download NLTK resources
 @st.cache_resource
 def download_nltk_resources():
