@@ -24,6 +24,7 @@ from PIL import Image
 import base64
 from io import BytesIO
 import time
+import os
 
 nltk.data.path.append("/tmp/nltk_data")
 os.makedirs("/tmp/nltk_data", exist_ok=True)
