@@ -1,11 +1,5 @@
 import streamlit as st
-
-st.set_page_config(
-    page_title="Advanced YouTube Comment Sentiment Analysis", 
-    layout="wide"
-)
-
-
+st.set_page_config(page_title="Advanced YouTube Comment Sentiment Analysis", layout="wide")
 import pandas as pd
 import numpy as np
 import re
@@ -32,31 +26,13 @@ from io import BytesIO
 import time
 
 # Download NLTK resources
-# Replace your current download_nltk_resources() function with this:
 @st.cache_resource
 def download_nltk_resources():
-    try:
-        nltk.data.find('tokenizers/punkt')
-    except LookupError:
-        nltk.download('punkt')
-    
-    try:
-        nltk.data.find('corpora/stopwords')
-    except LookupError:
-        nltk.download('stopwords')
-    
-    try:
-        nltk.data.find('corpora/wordnet')
-    except LookupError:
-        nltk.download('wordnet')
-    
-    # Also download averaged_perceptron_tagger if you're using pos_tag
-    try:
-        nltk.data.find('taggers/averaged_perceptron_tagger')
-    except LookupError:
-        nltk.download('averaged_perceptron_tagger')
+    nltk.download('punkt')
+    nltk.download('stopwords')
+    nltk.download('wordnet')
 
-
+download_nltk_resources()
 
 # Initialize session state for caching data
 if 'analyzed_videos' not in st.session_state:
@@ -106,87 +82,77 @@ def get_video_info(api_key, video_id):
 
 # Function to get comments from YouTube API with pagination and time tracking
 def get_comments(api_key, video_id, max_results=100):
+    # Create YouTube API client
     youtube = build('youtube', 'v3', developerKey=api_key)
     
     try:
+        # Get comments
         comments = []
         comment_data = []
         next_page_token = None
         
-
-        progress_bar = st.progress(0)
-        
-        while len(comments) < max_results:
-            response = youtube.commentThreads().list(
-                part='snippet',
-                videoId=video_id,
-                maxResults=min(100, max_results - len(comments)),
-                pageToken=next_page_token,
-                textFormat='plainText'
-            ).execute()
-            
-            for item in response['items']:
-                comment_snippet = item['snippet']['topLevelComment']['snippet']
-                comment = comment_snippet['textDisplay']
-                comment_info = {
-                    'text': comment,
-                    'author': comment_snippet['authorDisplayName'],
-                    'published_at': comment_snippet['publishedAt'],
-                    'like_count': comment_snippet['likeCount'],
-                    'reply_count': item['snippet'].get('totalReplyCount', 0)
-                }
-                comments.append(comment)
-                comment_data.append(comment_info)
-            
-            # Update progress bar
-            progress = min(len(comments) / max_results, 1.0)
-            progress_bar.progress(progress)
-            
-            next_page_token = response.get('nextPageToken')
-            if not next_page_token or len(comments) >= max_results:
-                break
+        with st.progress(0) as progress_bar:
+            # Continue fetching comments until we reach the desired number or there are no more
+            while len(comments) < max_results:
+                # Make API request
+                response = youtube.commentThreads().list(
+                    part='snippet',
+                    videoId=video_id,
+                    maxResults=min(100, max_results - len(comments)),
+                    pageToken=next_page_token,
+                    textFormat='plainText'
+                ).execute()
                 
-        return comments, comment_data
-        
+                # Extract comments from the response
+                for item in response['items']:
+                    comment_snippet = item['snippet']['topLevelComment']['snippet']
+                    comment = comment_snippet['textDisplay']
+                    
+                    # Also collect metadata
+                    comment_info = {
+                        'text': comment,
+                        'author': comment_snippet['authorDisplayName'],
+                        'published_at': comment_snippet['publishedAt'],
+                        'like_count': comment_snippet['likeCount'],
+                        'reply_count': item['snippet'].get('totalReplyCount', 0)
+                    }
+                    
+                    comments.append(comment)
+                    comment_data.append(comment_info)
+                
+                # Update progress bar
+                progress_bar.progress(min(len(comments) / max_results, 1.0))
+                
+                # Check if there are more pages
+                next_page_token = response.get('nextPageToken')
+                if not next_page_token or len(comments) >= max_results:
+                    break
+                    
+            return comments, comment_data
+            
     except HttpError as e:
         st.error(f"An error occurred: {e}")
         return [], []
-    finally:
-
-        progress_bar.empty()
 
 # Function to preprocess text
 def preprocess_text(text):
-    try:
-        # Convert to lowercase
-        text = text.lower()
-        
-        # Remove URLs, mentions, hashtags, and special characters
-        text = re.sub(r'http\S+|www\S+|https\S+', '', text)
-        text = re.sub(r'@\w+', '', text)
-        text = re.sub(r'#\w+', '', text)
-        text = re.sub(r'[^\w\s]', '', text)
-        
-        # Tokenize with error handling
-        try:
-            tokens = word_tokenize(text)
-        except LookupError:
-            nltk.download('punkt')
-            tokens = word_tokenize(text)
-        
-        # Remove stopwords with error handling
-        try:
-            stop_words = set(stopwords.words('english'))
-        except LookupError:
-            nltk.download('stopwords')
-            stop_words = set(stopwords.words('english'))
-            
-        tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
-        
-        return tokens
-    except Exception as e:
-        st.error(f"Error preprocessing text: {str(e)}")
-        return []
+    # Convert to lowercase
+    text = text.lower()
+    
+    # Remove URLs, mentions, hashtags, and special characters
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text)
+    text = re.sub(r'@\w+', '', text)
+    text = re.sub(r'#\w+', '', text)
+    text = re.sub(r'[^\w\s]', '', text)
+    
+    # Tokenize
+    tokens = word_tokenize(text)
+    
+    # Remove stopwords
+    stop_words = set(stopwords.words('english'))
+    tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
+    
+    return tokens
 
 # Function to analyze sentiment with multiple methods
 def analyze_sentiment_multiple(text):
@@ -701,11 +667,7 @@ def main():
            - **Topic Analysis**: Discover key topics in the comments
            - **Time & Engagement**: Analyze sentiment trends and engagement metrics
            - **Raw Data**: View and export detailed comment data
-        
-        ### Tips for Better Results
-        - Analyze more comments for more accurate results
-        - Try different color themes for word clouds
-        - Filter results by sentiment or emotion for deeper insights
+
         """)
     
     # Footer
